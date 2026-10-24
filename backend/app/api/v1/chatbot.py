@@ -1,28 +1,30 @@
-from fastapi import APIRouter, Depends, HTTPException
-from groq import GroqError, APITimeoutError, AuthenticationError, RateLimitError
+from typing import Annotated, Any
 
-from app.ai_engineering.agent.deps import get_graph
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
+
+from app.deps import get_graph
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.chat import run_chat
-
+from app.services.chat_service import run_chat, stream_chat
 
 router = APIRouter()
 
+Graph = Annotated[Any, Depends(get_graph)]
+
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(chat_request: ChatRequest, graph=Depends(get_graph)):
-    try:
-        response, conversation_id = await run_chat(
-            graph, chat_request.message, chat_request.conversation_id
-        )
-    except APITimeoutError as exc:
-        raise HTTPException(504, "Groq request timed out.") from exc
-    except AuthenticationError as exc:
-        raise HTTPException(503, "Groq rejected the configured API key.") from exc
-    except RateLimitError as exc:
-        raise HTTPException(503, "Groq rate limit or quota exceeded.") from exc
-    except GroqError as exc:
-        raise HTTPException(502, "Groq chat request failed.") from exc
-    except ValueError as exc:
-        raise HTTPException(503, "Chat configuration or response is invalid.") from exc
-    return ChatResponse(response=response, conversation_id=conversation_id)
+async def chat_endpoint(chat_request: ChatRequest, graph: Graph):
+    """Chat endpoint with conversation memory."""
+    reply, conversation_id = await run_chat(
+        graph, chat_request.message, chat_request.conversation_id
+    )
+    return ChatResponse(response=reply, conversation_id=conversation_id)
+
+
+@router.post("/chat/stream")
+async def chat_stream_endpoint(chat_request: ChatRequest, graph: Graph):
+    """Server-sent events stream of the model's tokens."""
+    return StreamingResponse(
+        stream_chat(graph, chat_request.message, chat_request.conversation_id),
+        media_type="text/event-stream",
+    )
