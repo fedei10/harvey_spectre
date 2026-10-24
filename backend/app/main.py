@@ -4,6 +4,8 @@ from app.api.v1 import chatbot
 from contextlib import asynccontextmanager
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+
+
 from app.ai_engineering.agent.graph import build_graph
 from app.config import settings
 
@@ -28,6 +30,12 @@ app = FastAPI(lifespan=lifespan,
 
 app.include_router(chatbot.router, prefix="/v1",tags=["Chatbot"])
 app.include_router(health.router, prefix="/v1", tags=["Health"])
+
+
+@app.get("/test")
+def test_connections():
+    return {"groq_chat": health.check_groq_connection()["status"]}
+
 
 
 @app.get("/")

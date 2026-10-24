@@ -17,7 +17,7 @@ async def run_chat(graph, message: str, conversation_id: str | None) -> tuple[st
     )
     response = result["messages"][-1].text
     if not response.strip():
-        raise ValueError("CodeCraft returned an empty chat response.")
+        raise ValueError("The model returned an empty chat response.")
     return response, conversation_id
 
 

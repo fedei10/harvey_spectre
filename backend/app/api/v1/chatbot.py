@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from openai import OpenAIError, APITimeoutError, APIStatusError
+from groq import GroqError, APITimeoutError, AuthenticationError, RateLimitError
 
 from app.ai_engineering.agent.deps import get_graph
 from app.schemas.chat import ChatRequest, ChatResponse
-from app.services.codecraft.chat_service import run_chat
+from app.services.chat import run_chat
 
 
 router = APIRouter()
@@ -16,15 +16,13 @@ async def chat_endpoint(chat_request: ChatRequest, graph=Depends(get_graph)):
             graph, chat_request.message, chat_request.conversation_id
         )
     except APITimeoutError as exc:
-        raise HTTPException(504, "CodeCraft request timed out.") from exc
-    except APIStatusError as exc:
-        if exc.status_code == 402:
-            raise HTTPException(
-                503, "CodeCraft billing verification failed. Check the provider account balance and payment method."
-            ) from exc
-        raise HTTPException(502, "CodeCraft chat request failed.") from exc
-    except OpenAIError as exc:
-        raise HTTPException(502, "CodeCraft chat request failed.") from exc
+        raise HTTPException(504, "Groq request timed out.") from exc
+    except AuthenticationError as exc:
+        raise HTTPException(503, "Groq rejected the configured API key.") from exc
+    except RateLimitError as exc:
+        raise HTTPException(503, "Groq rate limit or quota exceeded.") from exc
+    except GroqError as exc:
+        raise HTTPException(502, "Groq chat request failed.") from exc
     except ValueError as exc:
         raise HTTPException(503, "Chat configuration or response is invalid.") from exc
     return ChatResponse(response=response, conversation_id=conversation_id)

@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 from pydantic_settings import SettingsConfigDict , BaseSettings
-
+from pydantic import SecretStr
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -16,9 +16,10 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "My FastAPI Application"
     APP_VERSION: str = "1.0.0"
-    OPENAI_API_KEY: str | None = None
+    OPENAI_API_KEY: SecretStr | None = None
+    GROQ_API_KEY: SecretStr | None = None
     CHECKPOINT_DB: str = str(BASE_DIR / "checkpoints.sqlite")
-    MODEL_NAME: str = "qwen3.8-27b"
+    GROQ_MODEL_NAME: str = "openai/gpt-oss-120b"
 
 
 

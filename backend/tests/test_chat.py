@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
-from openai import APIConnectionError, APITimeoutError, APIStatusError
+from groq import APIConnectionError, APITimeoutError, AuthenticationError, RateLimitError
+from pydantic import SecretStr
 
 from app.ai_engineering.agent.graph import build_graph
 from app.config import settings
@@ -17,11 +18,11 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         app.state.graph = build_graph(InMemorySaver())
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
-        self.model_patch = patch("app.ai_engineering.agent.nodes.llm.ChatOpenAI")
+        self.model_patch = patch("app.ai_engineering.agent.nodes.llm.ChatGroq")
         self.model = self.model_patch.start()
         self.bound = AsyncMock()
         self.model.return_value.bind_tools.return_value = self.bound
-        self.key_patch = patch.object(settings, "OPENAI_API_KEY", "test-key")
+        self.key_patch = patch.object(settings, "GROQ_API_KEY", SecretStr("test-key"))
         self.key_patch.start()
 
     async def asyncTearDown(self):
@@ -42,7 +43,9 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         third = await self.client.post("/v1/chat", json={"message": "New chat"})
         self.assertNotEqual(third.json()["conversation_id"], cid)
         self.assertEqual(len(self.bound.ainvoke.call_args.args[0]), 2)
-        self.assertEqual(self.model.call_args.kwargs["base_url"], "https://codecraftapi.com/v1")
+        self.assertNotIn("base_url", self.model.call_args.kwargs)
+        self.assertEqual(self.model.call_args.kwargs["model"], settings.GROQ_MODEL_NAME)
+        self.assertEqual(self.model.call_args.kwargs["api_key"], "test-key")
 
     async def test_tool_result_returns_to_model(self):
         self.bound.ainvoke.side_effect = [
@@ -61,14 +64,14 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.bound.ainvoke.assert_not_awaited()
 
     async def test_provider_errors(self):
-        request = httpx.Request("POST", "https://codecraftapi.com/v1/chat/completions")
+        request = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
         for error, status in [(APIConnectionError(request=request), 502), (APITimeoutError(request=request), 504)]:
             self.bound.ainvoke.side_effect = error
             response = await self.client.post("/v1/chat", json={"message": "Hi"})
             self.assertEqual(response.status_code, status)
 
     async def test_missing_key(self):
-        with patch.object(settings, "OPENAI_API_KEY", None):
+        with patch.object(settings, "GROQ_API_KEY", None):
             response = await self.client.post("/v1/chat", json={"message": "Hi"})
         self.assertEqual(response.status_code, 503)
 
@@ -77,12 +80,20 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.post("/v1/chat", json={"message": "Hi"})
         self.assertEqual(response.status_code, 503)
 
-    async def test_billing_failure_is_actionable(self):
-        response = httpx.Response(402, request=httpx.Request("POST", "https://codecraftapi.com"))
-        self.bound.ainvoke.side_effect = APIStatusError("Billing failed", response=response, body=None)
-        result = await self.client.post("/v1/chat", json={"message": "Hi"})
-        self.assertEqual(result.status_code, 503)
-        self.assertIn("billing", result.json()["detail"])
+    async def test_authentication_and_quota_failures(self):
+        for error_class, status, detail in [(AuthenticationError, 401, "API key"), (RateLimitError, 429, "quota")]:
+            response = httpx.Response(status, request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions"))
+            self.bound.ainvoke.side_effect = error_class("Provider failure", response=response, body=None)
+            result = await self.client.post("/v1/chat", json={"message": "Hi"})
+            self.assertEqual(result.status_code, 503)
+            self.assertIn(detail, result.json()["detail"])
+
+    async def test_chat_does_not_require_codecraft_key(self):
+        self.bound.ainvoke.return_value = AIMessage(content="Hello from Groq!")
+        with patch.object(settings, "OPENAI_API_KEY", None):
+            response = await self.client.post("/v1/chat", json={"message": "Hi"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["response"], "Hello from Groq!")
 
     async def test_sqlite_history_survives_restart(self):
         self.bound.ainvoke.return_value = AIMessage(content="Remembered.")

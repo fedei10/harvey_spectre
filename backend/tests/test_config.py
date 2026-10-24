@@ -17,4 +17,4 @@ class SettingsTests(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 settings = Settings(_env_file=env_file)
 
-        self.assertEqual(settings.OPENAI_API_KEY, "test-key")
+        self.assertEqual(settings.OPENAI_API_KEY.get_secret_value(), "test-key")

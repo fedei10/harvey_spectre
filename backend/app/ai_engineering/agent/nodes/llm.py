@@ -1,20 +1,24 @@
 from langchain_core.messages import SystemMessage
-from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
+from langchain_groq import ChatGroq
+
 
 from app.config import settings
 from app.ai_engineering.agent.prompts.prompts import SYSTEM_PROMPT
 from app.schemas.agent import AgentState
 from app.ai_engineering.agent.tools.OpenaiTools import tools
-from app.services.codecraft.connection import BASE_URL
 
 
 async def call_model(state: AgentState):
-    if not settings.OPENAI_API_KEY or not settings.OPENAI_API_KEY.strip():
-        raise ValueError("OPENAI_API_KEY is not configured.")
-    llm = ChatOpenAI(
-        model=settings.MODEL_NAME,
-        api_key=settings.OPENAI_API_KEY,
-        base_url=BASE_URL,
+    api_key = settings.GROQ_API_KEY
+    if isinstance(api_key, SecretStr):
+        api_key = api_key.get_secret_value()
+    if not api_key or not api_key.strip():
+        raise ValueError("GROQ_API_KEY is not configured.")
+
+    llm = ChatGroq(
+        model=settings.GROQ_MODEL_NAME,
+        api_key=api_key,
         temperature=0.7,
         timeout=30.0,
         max_retries=2,
