@@ -8,6 +8,7 @@ from app.services.Redis.connection import test_redis_connection
 
 from app.ai_engineering.agent.graph import build_graph
 from app.config import settings
+from app.services.PostgreSQL.connection import test_postgres_connection
 
 
 
@@ -34,8 +35,8 @@ app.include_router(health.router, prefix="/v1", tags=["Health"])
 
 @app.get("/test")
 def test_connections():
-    return {"groq_chat": health.check_groq_connection()["status"], "redis": test_redis_connection()
-            }
+    return {"groq_chat": health.check_groq_connection()["status"], "redis": test_redis_connection(), "postgres": test_postgres_connection()}
+            
 
 
 

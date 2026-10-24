@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     REDIS_PORT: int 
     REDIS_PASSWORD: str | None = None
 
+    #postgres
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    
+
 
 
 
