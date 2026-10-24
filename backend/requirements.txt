@@ -88,3 +88,8 @@ watchfiles==1.3.0
 websockets==17.3
 xxhash==4.0.2
 zstandard==0.25.0
+
+# LangGraph PostgreSQL checkpoints (Psycopg 3 async pool)
+langgraph-checkpoint-postgres>=3.0,<4.0
+psycopg[binary,pool]>=3.2,<4.0
+SQLAlchemy>=2.0,<3.0
