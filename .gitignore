@@ -1,0 +1,34 @@
+# Local secrets and environment overrides (keep example files trackable).
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Editor and operating-system files.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local logs.
+*.log
+logs/
+
+# Frontend dependencies, build output, and caches.
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+.output/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
