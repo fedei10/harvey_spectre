@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app.api.v1 import chatbot
 from contextlib import asynccontextmanager
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
+from app.services.Redis.connection import test_redis_connection
 
 
 from app.ai_engineering.agent.graph import build_graph
@@ -34,7 +34,8 @@ app.include_router(health.router, prefix="/v1", tags=["Health"])
 
 @app.get("/test")
 def test_connections():
-    return {"groq_chat": health.check_groq_connection()["status"]}
+    return {"groq_chat": health.check_groq_connection()["status"], "redis": test_redis_connection()
+            }
 
 
 

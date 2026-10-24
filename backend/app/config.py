@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: SecretStr | None = None
     CHECKPOINT_DB: str = str(BASE_DIR / "checkpoints.sqlite")
     GROQ_MODEL_NAME: str = "openai/gpt-oss-120b"
+    #redis
+    REDIS_HOST: str 
+    REDIS_PORT: int 
+    REDIS_PASSWORD: str | None = None
 
 
 
