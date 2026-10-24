@@ -95,19 +95,22 @@ class ChatTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["response"], "Hello from Groq!")
 
-    async def test_sqlite_history_survives_restart(self):
+    async def test_history_persists_with_same_checkpointer(self):
+        # Unit-level thread persistence; cloud Postgres is an integration test.
         self.bound.ainvoke.return_value = AIMessage(content="Remembered.")
-        with tempfile.TemporaryDirectory() as directory:
-            with patch.object(settings, "CHECKPOINT_DB", str(Path(directory) / "chat.sqlite")):
-                async with app.router.lifespan_context(app):
-                    response = await self.client.post("/v1/chat", json={"message": "Remember orange"})
-                    self.assertEqual(response.status_code, 200)
-                    cid = response.json()["conversation_id"]
-                async with app.router.lifespan_context(app):
-                    response = await self.client.post("/v1/chat", json={"message": "What word?", "conversation_id": cid})
-                    self.assertEqual(response.status_code, 200)
-                    messages = self.bound.ainvoke.call_args.args[0]
-                    self.assertEqual([m.content for m in messages[1:]], ["Remember orange", "Remembered.", "What word?"])
+        response = await self.client.post(
+            "/v1/chat", json={"message": "Remember orange", "conversation_id": "persist-1"}
+        )
+        self.assertEqual(response.status_code, 200)
+        response = await self.client.post(
+            "/v1/chat", json={"message": "What word?", "conversation_id": "persist-1"}
+        )
+        self.assertEqual(response.status_code, 200)
+        messages = self.bound.ainvoke.call_args.args[0]
+        self.assertEqual(
+            [m.content for m in messages[1:]],
+            ["Remember orange", "Remembered.", "What word?"],
+        )
 
     async def test_health_checks_provider_and_reports_errors(self):
         with patch("app.api.v1.health.get_models", return_value=[{"id": "test-model"}]) as models:
