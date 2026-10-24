@@ -1,7 +1,6 @@
-// See https://vercel.com/ai-gateway/models.
+// Display label for the model configured by backend GROQ_MODEL_NAME.
 export const MODELS = [
-  { id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5" },
-  { id: "openai/gpt-5.6-terra", name: "GPT 5.6 Terra" },
+  { id: "openai/gpt-oss-120b", name: "GPT OSS 120B · Groq" },
 ]
 
 export const DEFAULT_MODEL = MODELS[0].id

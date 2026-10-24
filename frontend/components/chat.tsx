@@ -2,13 +2,11 @@
 
 import * as React from "react"
 import { useChat } from "@ai-sdk/react"
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 
 import { type GatewayModel } from "@/lib/models"
 import { type ChatUIMessage } from "@/tools"
 import { ChatMessage } from "@/components/chat-message"
 import { PromptForm } from "@/components/prompt-form"
-import { QuestionCard } from "@/components/question-card"
 import { StatusIcon } from "@/components/status-icon"
 import { Suggestions } from "@/components/suggestions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -33,19 +31,8 @@ import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace"
 export function Chat({ models }: { models: GatewayModel[] }) {
   const [model, setModel] = React.useState(models[0]?.id ?? "")
 
-  const {
-    messages,
-    sendMessage,
-    regenerate,
-    status,
-    stop,
-    error,
-    addToolOutput,
-  } = useChat<ChatUIMessage>({
-    // Resume the conversation automatically once the user has answered the
-    // ask_user questionnaire.
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-  })
+  const { messages, sendMessage, status, stop, error } =
+    useChat<ChatUIMessage>()
 
   const resolvedModel = models.some((m) => m.id === model)
     ? model
@@ -54,15 +41,6 @@ export function Chat({ models }: { models: GatewayModel[] }) {
   const isBusy = status === "submitted" || status === "streaming"
 
   const lastMessage = messages.at(-1)
-  const pendingQuestion =
-    lastMessage?.role === "assistant"
-      ? lastMessage.parts.find(
-          (part): part is Extract<typeof part, { type: "tool-ask_user" }> =>
-            part.type === "tool-ask_user" &&
-            (part.state === "input-streaming" ||
-              part.state === "input-available")
-        )
-      : undefined
 
   return (
     <div className="mx-auto flex min-h-0 w-full flex-1 flex-col">
@@ -72,8 +50,8 @@ export function Chat({ models }: { models: GatewayModel[] }) {
             <EmptyHeader>
               <EmptyTitle>What can I help with?</EmptyTitle>
               <EmptyDescription>
-                Pick a model and start chatting. Responses stream through the
-                Vercel AI Gateway.
+                Chat with your Groq assistant. Replies appear as they are
+                generated.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
@@ -102,15 +80,6 @@ export function Chat({ models }: { models: GatewayModel[] }) {
                     <ChatMessage
                       message={message}
                       isStreaming={isBusy && message.id === lastMessage?.id}
-                      onRetry={
-                        !isBusy && message.id === lastMessage?.id
-                          ? () =>
-                              regenerate({
-                                messageId: message.id,
-                                body: { model: resolvedModel },
-                              })
-                          : undefined
-                      }
                     />
                   </MessageScrollerItem>
                 ))}
@@ -131,19 +100,6 @@ export function Chat({ models }: { models: GatewayModel[] }) {
                   </MessageScrollerItem>
                 )}
               </MessageScrollerContent>
-              {pendingQuestion && (
-                <QuestionCard
-                  part={pendingQuestion}
-                  onAnswer={(toolCallId, answer) =>
-                    addToolOutput({
-                      tool: "ask_user",
-                      toolCallId,
-                      output: answer,
-                      options: { body: { model: resolvedModel } },
-                    })
-                  }
-                />
-              )}
             </MessageScrollerViewport>
             <MessageScrollerButton />
           </MessageScroller>

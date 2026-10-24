@@ -1,99 +1,83 @@
-import {
-  convertToModelMessages,
-  createUIMessageStreamResponse,
-  isStepCount,
-  streamText,
-  toUIMessageStream,
-  validateUIMessages,
-} from "ai"
+import { z } from "zod"
 
-import { DEFAULT_MODEL, isModelAllowed } from "@/lib/models"
-import { getTools, type ChatUIMessage } from "@/tools"
+export const maxDuration = 120
 
-export const maxDuration = 30
-
-const MAX_OUTPUT_TOKENS = 8192
-
-// This endpoint is public and spends your AI Gateway credits on every request.
-// Before exposing it to real traffic, add a rate limit (e.g. Vercel Firewall /
-// WAF or @upstash/ratelimit), authentication, and an AI Gateway spend limit.
-// See the README "Security" section.
-export async function POST(req: Request) {
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return Response.json({ error: "Invalid JSON body." }, { status: 400 })
-  }
-
-  const model = (body as { model?: unknown })?.model
-  const modelId = typeof model === "string" ? model : DEFAULT_MODEL
-
-  if (!isModelAllowed(modelId)) {
-    return Response.json(
-      { error: `Model ${modelId} is not available.` },
-      { status: 400 }
-    )
-  }
-
-  const tools = getTools(modelId)
-
-  // Validate the shape of every message and tool part before trusting it.
-  let messages: ChatUIMessage[]
-  try {
-    const validated = await validateUIMessages<ChatUIMessage>({
-      messages: (body as { messages?: unknown })?.messages,
-      tools: tools as Parameters<typeof validateUIMessages>[0]["tools"],
-    })
-    messages = validated
-  } catch {
-    return Response.json({ error: "Invalid messages." }, { status: 400 })
-  }
-
-  const result = streamText({
-    model: modelId,
-    messages: await convertToModelMessages(messages),
-    tools,
-    stopWhen: isStepCount(5),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
-    abortSignal: req.signal,
-  })
-
-  // A reply after ask_user continues the last message, so count its parts.
-  const lastMessage = messages.at(-1)
-  let reasoningCount =
-    lastMessage?.role === "assistant"
-      ? lastMessage.parts.filter((part) => part.type === "reasoning").length
-      : 0
-  const reasoningStarts = new Map<string, { index: number; time: number }>()
-
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream({
-      stream: result.stream,
-      sendSources: true,
-      // The AI SDK does not time reasoning, so time each block here.
-      messageMetadata: ({ part }) => {
-        if (part.type === "reasoning-start") {
-          reasoningStarts.set(part.id, {
-            index: reasoningCount++,
-            time: Date.now(),
+const requestSchema = z.object({
+  id: z.string().min(1).max(200),
+  trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant", "system"]),
+        parts: z.array(
+          z.object({
+            type: z.string(),
+            text: z.string().optional(),
           })
-        }
+        ),
+      })
+    )
+    .min(1),
+})
 
-        const start =
-          part.type === "reasoning-end"
-            ? reasoningStarts.get(part.id)
-            : undefined
+export async function POST(req: Request) {
+  const parsed = requestSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) {
+    return new Response("Invalid chat request.", { status: 400 })
+  }
+  const { id, messages, trigger } = parsed.data
+  if (trigger === "regenerate-message") {
+    return new Response("Start a new message to continue this conversation.", {
+      status: 400,
+    })
+  }
+  const latest = messages.at(-1)!
+  const message = latest.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.text ?? "")
+    .join("\n")
+    .trim()
+  if (latest.role !== "user" || !message) {
+    return new Response("A user message is required.", { status: 400 })
+  }
 
-        if (!start) {
-          return undefined
-        }
-
-        return {
-          reasoningDurations: { [start.index]: Date.now() - start.time },
-        }
+  const backend = process.env.BACKEND_URL ?? "http://127.0.0.1:8000"
+  try {
+    const response = await fetch(
+      `${backend.replace(/\/$/, "")}/v1/chat/stream`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, conversation_id: id }),
+        signal: req.signal,
+        cache: "no-store",
+      }
+    )
+    if (!response.ok) {
+      const data = await response.json().catch(() => null)
+      return new Response(
+        typeof data?.detail === "string"
+          ? data.detail
+          : "Chat backend request failed.",
+        { status: response.status }
+      )
+    }
+    if (
+      !response.body ||
+      !response.headers.get("content-type")?.includes("text/event-stream")
+    ) {
+      return new Response("Invalid chat backend stream.", { status: 502 })
+    }
+    // Forward bytes as they arrive; never buffer the model's entire reply.
+    return new Response(response.body, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "x-vercel-ai-ui-message-stream": "v1",
+        "X-Accel-Buffering": "no",
       },
-      onError: () => "Something went wrong. Please try again.",
-    }),
-  })
+    })
+  } catch {
+    return new Response("Could not reach the chat backend.", { status: 502 })
+  }
 }

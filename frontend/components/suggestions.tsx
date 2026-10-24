@@ -9,13 +9,12 @@ const suggestions = [
       "Tell me a short story. Format it in rich markdown: a title heading, a blockquote, a bulleted list, a table, and some bold and italic text.",
   },
   {
-    label: "What's new in Next.js",
-    prompt:
-      "Search the web for the latest Next.js release and summarize what's new.",
+    label: "Explain an idea",
+    prompt: "Explain how an API connects a frontend to a backend.",
   },
   {
-    label: "Look up a repo",
-    prompt: "What are the GitHub stats for vercel/next.js?",
+    label: "Current UTC time",
+    prompt: "Use get_current_time to tell me the current UTC time.",
   },
   {
     label: "Plan a dinner",
