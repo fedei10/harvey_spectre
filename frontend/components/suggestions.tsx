@@ -1,45 +1,66 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import {
+  CodeXmlIcon,
+  LightbulbIcon,
+  ListChecksIcon,
+  PenLineIcon,
+} from "lucide-react"
+
+import {
+  Suggestion,
+  Suggestions as SuggestionRow,
+} from "@/components/ai-elements/suggestion"
 
 const suggestions = [
   {
-    label: "Tell me a story",
+    label: "Make something clear",
+    icon: LightbulbIcon,
     prompt:
-      "Tell me a short story. Format it in rich markdown: a title heading, a blockquote, a bulleted list, a table, and some bold and italic text.",
+      "Explain how an API connects a frontend to a backend, using a simple example.",
   },
   {
-    label: "Explain an idea",
-    prompt: "Explain how an API connects a frontend to a backend.",
-  },
-  {
-    label: "Current UTC time",
-    prompt: "Use get_current_time to tell me the current UTC time.",
-  },
-  {
-    label: "Plan a dinner",
+    label: "Find the right words",
+    icon: PenLineIcon,
     prompt:
-      "Help me plan a birthday dinner — ask me a few clarifying questions first, then suggest a menu.",
+      "Help me write a clear, thoughtful email. Ask me who it is for and what I want to say.",
+  },
+  {
+    label: "Work through a problem",
+    icon: CodeXmlIcon,
+    prompt:
+      "Help me debug my code. Ask me for the relevant code, the error, and what I expected to happen.",
+  },
+  {
+    label: "Build a plan",
+    icon: ListChecksIcon,
+    prompt:
+      "Help me turn a goal into a practical plan. Start by asking what I want to achieve and my deadline.",
   },
 ]
 
 export function Suggestions({
   onSelect,
+  disabled = false,
 }: {
   onSelect: (prompt: string) => void
+  disabled?: boolean
 }) {
   return (
-    <div className="flex flex-wrap justify-center gap-2">
-      {suggestions.map((suggestion) => (
-        <Button
-          key={suggestion.label}
-          variant="outline"
-          size="sm"
-          onClick={() => onSelect(suggestion.prompt)}
+    <SuggestionRow className="w-full flex-wrap justify-center px-1 pb-1">
+      {suggestions.map(({ label, icon: Icon, prompt }) => (
+        <Suggestion
+          key={label}
+          suggestion={prompt}
+          title={prompt}
+          disabled={disabled}
+          onClick={onSelect}
+          className="starter-card gap-2"
         >
-          {suggestion.label}
-        </Button>
+          <Icon className="text-primary" aria-hidden="true" />
+          {label}
+        </Suggestion>
       ))}
-    </div>
+    </SuggestionRow>
   )
 }

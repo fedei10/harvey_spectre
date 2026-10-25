@@ -34,10 +34,8 @@ def _event(payload: dict) -> str:
 
 async def stream_chat(graph, message: str, conversation_id: str | None) -> AsyncIterator[str]:
     conversation_id = conversation_id or str(uuid4())
-    text_id = str(uuid4())
-    yield _event({"type": "start", "messageId": str(uuid4()),
-                  "messageMetadata": {"conversationId": conversation_id}})
-    yield _event({"type": "text-start", "id": text_id})
+    yield _event({"type": "start", "message_id": str(uuid4()),
+                  "conversation_id": conversation_id})
     has_text = False
     try:
         async for chunk, meta in graph.astream(
@@ -49,16 +47,11 @@ async def stream_chat(graph, message: str, conversation_id: str | None) -> Async
                 text = chunk.text
                 if text:
                     has_text = True
-                    yield _event({"type": "text-delta", "id": text_id, "delta": text})
+                    yield _event({"type": "delta", "text": text})
         if not has_text:
             raise ValueError("The model returned an empty chat response.")
     except Exception as exc:
         logger.warning("Streaming chat failed (%s)", type(exc).__name__)
         _, detail = chat_error(exc)
-        yield _event({"type": "error", "errorText": detail})
-        yield _event({"type": "text-end", "id": text_id})
-        yield _event({"type": "finish", "finishReason": "error"})
-    else:
-        yield _event({"type": "text-end", "id": text_id})
-        yield _event({"type": "finish", "finishReason": "stop"})
-    yield "data: [DONE]\n\n"
+        yield _event({"type": "error", "message": detail})
+    yield _event({"type": "done"})

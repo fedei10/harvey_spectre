@@ -18,7 +18,7 @@ from app.services.chat import stream_chat
 
 def events(body):
     return [json.loads(line[6:]) for line in body.splitlines()
-            if line.startswith('data: ') and line != 'data: [DONE]']
+            if line.startswith('data: ')]
 
 
 class StreamingTests(unittest.IsolatedAsyncioTestCase):
@@ -30,11 +30,12 @@ class StreamingTests(unittest.IsolatedAsyncioTestCase):
                 factory.return_value.bind_tools.return_value = FakeListChatModel(responses=[text])
                 frames = [frame async for frame in stream_chat(graph, 'Hi', 'stream-test')]
         chunks = events(''.join(frames))
-        deltas = [chunk['delta'] for chunk in chunks if chunk['type'] == 'text-delta']
+        deltas = [chunk['text'] for chunk in chunks if chunk['type'] == 'delta']
         self.assertGreater(len(deltas), 1)
         self.assertEqual(''.join(deltas), text)
-        self.assertEqual(chunks[-1]['finishReason'], 'stop')
-        self.assertEqual(frames[-1], 'data: [DONE]\n\n')
+        self.assertEqual(chunks[-1]['type'], 'done')
+        self.assertEqual(chunks[0]['conversation_id'], 'stream-test')
+        self.assertFalse(any(chunk['type'] == 'error' for chunk in chunks))
         state = await graph.aget_state({'configurable': {'thread_id': 'stream-test'}})
         self.assertEqual([message.content for message in state.values['messages']], ['Hi', text])
 
@@ -46,9 +47,9 @@ class StreamingTests(unittest.IsolatedAsyncioTestCase):
                 raise RateLimitError('private details', response=response, body=None)
         chunks = events(''.join([frame async for frame in stream_chat(Graph(), 'Hi', None)]))
         error = next(chunk for chunk in chunks if chunk['type'] == 'error')
-        self.assertIn('quota', error['errorText'])
-        self.assertNotIn('private', error['errorText'])
-        self.assertEqual(chunks[-1]['finishReason'], 'error')
+        self.assertIn('quota', error['message'])
+        self.assertNotIn('private', error['message'])
+        self.assertEqual(chunks[-1]['type'], 'done')
 
     async def test_cancellation_is_not_converted_to_an_error_reply(self):
         class Graph:
@@ -71,6 +72,6 @@ class StreamingTests(unittest.IsolatedAsyncioTestCase):
                     factory.return_value.bind_tools.return_value = FakeListChatModel(responses=['OK'])
                     response = await client.post('/v1/chat/stream', json={'message': 'Hi'})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.headers['x-vercel-ai-ui-message-stream'], 'v1')
+            self.assertNotIn('x-vercel-ai-ui-message-stream', response.headers)
             self.assertIn('text/event-stream', response.headers['content-type'])
-            self.assertTrue(any(chunk['type'] == 'text-delta' for chunk in events(response.text)))
+            self.assertTrue(any(chunk['type'] == 'delta' for chunk in events(response.text)))

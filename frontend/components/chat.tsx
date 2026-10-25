@@ -1,129 +1,126 @@
 "use client"
 
-import * as React from "react"
-import { useChat } from "@ai-sdk/react"
+import type { UIMessage } from "ai"
+import { SparklesIcon, XIcon } from "lucide-react"
 
-import { type GatewayModel } from "@/lib/models"
-import { type ChatUIMessage } from "@/tools"
+import {
+  Conversation,
+  ConversationContent,
+  ConversationDownload,
+  ConversationEmptyState,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation"
+import { Shimmer } from "@/components/ai-elements/shimmer"
 import { ChatMessage } from "@/components/chat-message"
 import { PromptForm } from "@/components/prompt-form"
-import { StatusIcon } from "@/components/status-icon"
 import { Suggestions } from "@/components/suggestions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
-import { Message, MessageContent } from "@/components/ui/message"
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/components/ui/message-scroller"
-import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace"
+import { Button } from "@/components/ui/button"
+import { useBackendChat } from "@/hooks/use-backend-chat"
+import type { ChatMessage as BackendMessage } from "@/lib/chat-stream"
 
-export function Chat({ models }: { models: GatewayModel[] }) {
-  const [model, setModel] = React.useState(models[0]?.id ?? "")
+const toUIMessage = (message: BackendMessage): UIMessage => ({
+  id: message.id,
+  role: message.role,
+  parts: [{ type: "text", text: message.text }],
+  metadata: message.state,
+})
 
-  const { messages, sendMessage, status, stop, error } =
-    useChat<ChatUIMessage>()
+function formatForDownload(message: UIMessage) {
+  const text = message.parts
+    .map((part) => (part.type === "text" ? part.text : ""))
+    .join("")
+  const incomplete =
+    message.metadata === "stopped" || message.metadata === "error"
+  return `## ${message.role === "user" ? "You" : "Harvey"}\n\n${text}${incomplete ? "\n\n_Response incomplete._" : ""}`
+}
 
-  const resolvedModel = models.some((m) => m.id === model)
-    ? model
-    : (models[0]?.id ?? "")
+export function Chat() {
+  const { messages, sendMessage, status, stop, error, clearError } =
+    useBackendChat()
 
-  const isBusy = status === "submitted" || status === "streaming"
-
+  const isBusy = status !== "ready"
   const lastMessage = messages.at(-1)
 
   return (
-    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col">
-      {messages.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center p-6">
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>What can I help with?</EmptyTitle>
-              <EmptyDescription>
-                Chat with your Groq assistant. Replies appear as they are
-                generated.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Suggestions
-                onSelect={(prompt) =>
-                  sendMessage(
-                    { text: prompt },
-                    { body: { model: resolvedModel } }
-                  )
-                }
+    <main
+      id="main-content"
+      className="mx-auto flex min-h-0 w-full flex-1 flex-col"
+    >
+      <Conversation className="chat-thread min-h-0">
+        <ConversationContent className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8">
+          {messages.length === 0 ? (
+            <ConversationEmptyState className="chat-welcome min-h-[60svh] gap-6">
+              <span className="flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
+                <SparklesIcon className="size-3.5" aria-hidden="true" /> Space
+                to think
+              </span>
+              <h1 className="chat-welcome-title">
+                Big thoughts.
+                <br />
+                <span className="text-primary">Clear next steps.</span>
+              </h1>
+              <p className="chat-welcome-description text-muted-foreground">
+                A thinking partner for the first draft, the tricky question, and
+                whatever comes next.
+              </p>
+              <Suggestions disabled={isBusy} onSelect={sendMessage} />
+            </ConversationEmptyState>
+          ) : (
+            messages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                isStreaming={isBusy && message.id === lastMessage?.id}
               />
-            </EmptyContent>
-          </Empty>
-        </div>
-      ) : (
-        <MessageScrollerProvider>
-          <MessageScroller className="flex-1">
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-6">
-                {messages.map((message) => (
-                  <MessageScrollerItem
-                    key={message.id}
-                    messageId={message.id}
-                    scrollAnchor={message.role === "user"}
-                  >
-                    <ChatMessage
-                      message={message}
-                      isStreaming={isBusy && message.id === lastMessage?.id}
-                    />
-                  </MessageScrollerItem>
-                ))}
-                {status === "submitted" && (
-                  <MessageScrollerItem messageId="thinking">
-                    <Message>
-                      <MessageContent>
-                        <Trace>
-                          <TraceLine status="running">
-                            <TraceIcon>
-                              <StatusIcon status="running" />
-                            </TraceIcon>
-                            <TraceTitle>Thinking</TraceTitle>
-                          </TraceLine>
-                        </Trace>
-                      </MessageContent>
-                    </Message>
-                  </MessageScrollerItem>
-                )}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton />
-          </MessageScroller>
-        </MessageScrollerProvider>
-      )}
+            ))
+          )}
+          {status === "submitted" && (
+            <div className="flex items-center gap-2 text-sm" role="status">
+              <span
+                aria-hidden="true"
+                className="flex size-7 items-center justify-center rounded-lg bg-primary font-serif text-primary-foreground"
+              >
+                h.
+              </span>
+              <Shimmer as="span">Harvey is thinking…</Shimmer>
+            </div>
+          )}
+        </ConversationContent>
+        {messages.length > 0 && (
+          <ConversationDownload
+            messages={messages.map(toUIMessage)}
+            formatMessage={formatForDownload}
+            filename="harvey-conversation.md"
+            aria-label="Download conversation"
+            disabled={isBusy}
+          />
+        )}
+        <ConversationScrollButton aria-label="Scroll to latest message" />
+      </Conversation>
 
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 px-6 pb-6">
+      <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-3 px-5 pt-3 pb-4 sm:px-8 sm:pb-6">
         {error && (
           <Alert variant="destructive">
-            <AlertTitle>Request failed</AlertTitle>
+            <AlertTitle className="flex items-center justify-between gap-2">
+              Couldn’t finish this response
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Dismiss error"
+                onClick={clearError}
+              >
+                <XIcon />
+              </Button>
+            </AlertTitle>
             <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         )}
-        <PromptForm
-          models={models}
-          model={resolvedModel}
-          onModelChange={setModel}
-          isBusy={isBusy}
-          onSubmit={(text) =>
-            sendMessage({ text }, { body: { model: resolvedModel } })
-          }
-          onStop={() => stop()}
-        />
+        <PromptForm status={status} onSubmit={sendMessage} onStop={stop} />
+        <p className="text-center text-[11px] text-muted-foreground">
+          Harvey can make mistakes. Check important details.
+        </p>
       </div>
-    </div>
+    </main>
   )
 }

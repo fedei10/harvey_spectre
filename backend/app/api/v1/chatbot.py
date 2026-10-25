@@ -28,7 +28,7 @@ async def chat_endpoint(chat_request: ChatRequest, graph: Graph):
 
 @router.post("/chat/stream")
 async def chat_stream_endpoint(chat_request: ChatRequest, graph: Graph):
-    """Stream AI SDK UI message events, preserving conversation memory."""
+    """Stream backend-owned SSE events, preserving conversation memory."""
     key = settings.GROQ_API_KEY
     if not key or not key.get_secret_value().strip():
         raise HTTPException(503, "GROQ_API_KEY is not configured.")
@@ -38,6 +38,5 @@ async def chat_stream_endpoint(chat_request: ChatRequest, graph: Graph):
         headers={
             "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
-            "x-vercel-ai-ui-message-stream": "v1",
         },
     )

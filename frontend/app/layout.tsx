@@ -30,6 +30,12 @@ export default function RootLayout({
       )}
     >
       <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-lg focus:bg-card focus:p-3"
+        >
+          Skip to conversation
+        </a>
         <ThemeProvider>
           <TooltipProvider>
             <div className="flex h-svh flex-col">

@@ -3,21 +3,8 @@ import { z } from "zod"
 export const maxDuration = 120
 
 const requestSchema = z.object({
-  id: z.string().min(1).max(200),
-  trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
-  messages: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant", "system"]),
-        parts: z.array(
-          z.object({
-            type: z.string(),
-            text: z.string().optional(),
-          })
-        ),
-      })
-    )
-    .min(1),
+  message: z.string().trim().min(1),
+  conversation_id: z.string().min(1).max(200),
 })
 
 export async function POST(req: Request) {
@@ -25,22 +12,6 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return new Response("Invalid chat request.", { status: 400 })
   }
-  const { id, messages, trigger } = parsed.data
-  if (trigger === "regenerate-message") {
-    return new Response("Start a new message to continue this conversation.", {
-      status: 400,
-    })
-  }
-  const latest = messages.at(-1)!
-  const message = latest.parts
-    .filter((part) => part.type === "text")
-    .map((part) => part.text ?? "")
-    .join("\n")
-    .trim()
-  if (latest.role !== "user" || !message) {
-    return new Response("A user message is required.", { status: 400 })
-  }
-
   const backend = process.env.BACKEND_URL ?? "http://127.0.0.1:8000"
   try {
     const response = await fetch(
@@ -48,7 +19,7 @@ export async function POST(req: Request) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, conversation_id: id }),
+        body: JSON.stringify(parsed.data),
         signal: req.signal,
         cache: "no-store",
       }
@@ -73,7 +44,6 @@ export async function POST(req: Request) {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-transform",
-        "x-vercel-ai-ui-message-stream": "v1",
         "X-Accel-Buffering": "no",
       },
     })
