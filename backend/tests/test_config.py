@@ -13,7 +13,13 @@ class SettingsTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"
-            env_file.write_text("OPENAI_API_KEY=test-key\n", encoding="utf-8")
+            env_file.write_text(
+                "OPENAI_API_KEY=test-key\n"
+                "REDIS_HOST=localhost\nREDIS_PORT=6379\n"
+                "POSTGRES_HOST=localhost\nPOSTGRES_PORT=5432\n"
+                "POSTGRES_USER=test\nPOSTGRES_PASSWORD=test\nPOSTGRES_DB=test\n",
+                encoding="utf-8",
+            )
             with patch.dict(os.environ, {}, clear=True):
                 settings = Settings(_env_file=env_file)
 

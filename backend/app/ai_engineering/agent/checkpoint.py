@@ -52,7 +52,8 @@ def get_checkpoint_dsn() -> str:
 async def postgres_checkpointer(*, setup: bool = False) -> AsyncIterator[AsyncPostgresSaver]:
     """Start a managed connection pool; optionally initialize LangGraph tables.
 
-    setup=True is intended for the one-time init script, not normal server start.
+    setup=True creates missing tables and applies pending migrations at startup
+    or when running the standalone initialization script.
     """
     async with AsyncConnectionPool(
         conninfo=get_checkpoint_dsn(),

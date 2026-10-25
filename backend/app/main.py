@@ -12,9 +12,8 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # No more SQLite: checkpoints persist in PostgreSQL across restarts.
-    # Run init_checkpoints once before starting the application.
-    async with postgres_checkpointer() as saver:
+    # Create/migrate checkpoint tables before accepting chat requests.
+    async with postgres_checkpointer(setup=True) as saver:
         app.state.graph = build_graph(saver)
         yield
 
@@ -22,7 +21,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     lifespan=lifespan,
     title=settings.APP_NAME,
-    description="LangGraph agent with PostgreSQL checkpoint persistence.",
+    description="LangGrap",
     version=settings.APP_VERSION,
 )
 app.include_router(chatbot.router, prefix="/v1", tags=["Chatbot"])
