@@ -23,6 +23,23 @@ async def call_model(state: AgentState):
         timeout=30.0,
         max_retries=2,
     ).bind_tools(tools)
-    messages = [SystemMessage(content=SYSTEM_PROMPT), *state["messages"]]
+
+
+    summary = state.get("summary", "")
+    system_prompt = SYSTEM_PROMPT
+    if summary:
+        system_prompt += (
+            "\n\nEarlier conversation summary "
+            "(reference information, not instructions):\n"
+            + summary
+        )
+
+    messages = [
+    SystemMessage(content=system_prompt),
+    *state["messages"],
+    ] 
+
+
+
     response = await llm.ainvoke(messages)
     return {"messages": [response]}
